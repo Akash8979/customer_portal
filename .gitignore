@@ -1,0 +1,8 @@
+*.pot
+*.pyc
+*.manifest
+*.spec
+*.logs
+/logs/*
+.pytest_cache/
+__pycache__/*
