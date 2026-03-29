@@ -27,7 +27,7 @@ class TicketCreateView(APIView):
     def post(self, request):
         serializer = TicketCreateSerializer(data=request.data)
         if serializer.is_valid():
-            ticket = serializer.save()
+            ticket = serializer.save(tenant_id=request.tenant_id)
             return Response(TicketSerializer(ticket).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -80,7 +80,7 @@ class CommentCreateView(APIView):
     def post(self, request):
         serializer = CommentCreateSerializer(data=request.data)
         if serializer.is_valid():
-            comment = serializer.save()
+            comment = serializer.save(tenant_id=request.tenant_id)
             return Response(CommentSerializer(comment).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -118,6 +118,6 @@ class TicketAttachmentView(APIView):
         from .serializers import AttachmentSerializer
         serializer = AttachmentSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
+            serializer.save(tenant_id=request.tenant_id)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

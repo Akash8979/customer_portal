@@ -5,8 +5,8 @@ from .models import Ticket, Attachment, TicketAttachment, Comment, CommentMentio
 class AttachmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Attachment
-        fields = ['id', 'file_name', 'file_type', 'file_path', 'metadata', 'created_at']
-        read_only_fields = ['id', 'created_at']
+        fields = ['id', 'file_name', 'file_type', 'file_path', 'tenant_id', 'metadata', 'created_at']
+        read_only_fields = ['id', 'tenant_id', 'created_at']
 
 
 class TicketAttachmentSerializer(serializers.ModelSerializer):
@@ -25,10 +25,10 @@ class TicketSerializer(serializers.ModelSerializer):
         model = Ticket
         fields = [
             'id', 'title', 'description', 'category', 'status', 'priority',
-            'created_by', 'assigned_to', 'due_date', 'resolved_at', 'closed_at',
+            'tenant_id', 'created_by', 'assigned_to', 'due_date', 'resolved_at', 'closed_at',
             'comments', 'attachments', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'status', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'status', 'tenant_id', 'created_at', 'updated_at']
 
     def get_attachments(self, obj):
         attachment_ids = TicketAttachment.objects.filter(
@@ -98,7 +98,7 @@ class CommentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Comment
         fields = [
-            'id', 'ticket_id', 'user_id', 'parent_id', 'message',
+            'id', 'ticket_id', 'tenant_id', 'user_id', 'parent_id', 'message',
             'is_deleted', 'attachments', 'mentions', 'created_at', 'updated_at',
         ]
 
