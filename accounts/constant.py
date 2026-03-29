@@ -1,12 +1,10 @@
 
 TENANT = {
     "tenant_1": {
-        "tenant_name": "Tenant One",
-        "users": ["client_admin_test_1@gmail.com"]
+        "tenant_name": "Tenant One"
     },
     "tenant_2": {
         "tenant_name": "Tenant Two",
-        "users": []
     }
 }
 
