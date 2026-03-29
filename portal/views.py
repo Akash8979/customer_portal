@@ -2,12 +2,13 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Ticket
+from .models import Ticket,Comment
 from .serializers import (
     TicketCreateSerializer,
     TicketSerializer,
     TicketUpdateSerializer,
     CommentCreateSerializer,
+    CommentUpdateSerializer,
     CommentSerializer,
 )
 
@@ -79,6 +80,29 @@ class CommentCreateView(APIView):
         if serializer.is_valid():
             comment = serializer.save()
             return Response(CommentSerializer(comment).data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class CommentUpdateView(APIView):
+    """
+    PATCH /api/portal/comments/<id>/update/
+    Body: {
+        "message": "...",
+        "attachment_ids": [3],        (optional — appends new attachments)
+        "mentioned_user_ids": [2, 5]  (optional — adds new mentions)
+    }
+    """
+
+    def patch(self, request, pk):
+        try:
+            comment = Comment.objects.get(pk=pk, is_deleted=False)
+        except Comment.DoesNotExist:
+            return Response({'error': 'Comment not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = CommentUpdateSerializer(comment, data=request.data, partial=True)
+        if serializer.is_valid():
+            updated = serializer.save()
+            return Response(CommentSerializer(updated).data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 

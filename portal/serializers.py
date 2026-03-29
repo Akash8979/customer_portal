@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Ticket, Attachment, TicketAttachment, Comment
+from .models import Ticket, Attachment, TicketAttachment, Comment, CommentMention
 
 
 class AttachmentSerializer(serializers.ModelSerializer):
@@ -85,14 +85,21 @@ class TicketUpdateSerializer(serializers.ModelSerializer):
         return instance
 
 
+class CommentMentionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CommentMention
+        fields = ['id', 'comment_id', 'mentioned_user_id', 'created_at']
+
+
 class CommentSerializer(serializers.ModelSerializer):
     attachments = serializers.SerializerMethodField()
+    mentions = serializers.SerializerMethodField()
 
     class Meta:
         model = Comment
         fields = [
             'id', 'ticket_id', 'user_id', 'parent_id', 'message',
-            'is_deleted', 'attachments', 'created_at', 'updated_at',
+            'is_deleted', 'attachments', 'mentions', 'created_at', 'updated_at',
         ]
 
     def get_attachments(self, obj):
@@ -102,15 +109,22 @@ class CommentSerializer(serializers.ModelSerializer):
         attachments = Attachment.objects.filter(id__in=attachment_ids)
         return AttachmentSerializer(attachments, many=True).data
 
+    def get_mentions(self, obj):
+        mentions = CommentMention.objects.filter(comment_id=obj.id)
+        return CommentMentionSerializer(mentions, many=True).data
+
 
 class CommentCreateSerializer(serializers.ModelSerializer):
     attachment_ids = serializers.ListField(
         child=serializers.IntegerField(), required=False, write_only=True
     )
+    mentioned_user_ids = serializers.ListField(
+        child=serializers.IntegerField(), required=False, write_only=True
+    )
 
     class Meta:
         model = Comment
-        fields = ['ticket_id', 'user_id', 'parent_id', 'message', 'attachment_ids']
+        fields = ['ticket_id', 'user_id', 'parent_id', 'message', 'attachment_ids', 'mentioned_user_ids']
 
     def validate_parent_id(self, value):
         if value is not None and not Comment.objects.filter(id=value, is_deleted=False).exists():
@@ -119,10 +133,41 @@ class CommentCreateSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         attachment_ids = validated_data.pop('attachment_ids', [])
+        mentioned_user_ids = validated_data.pop('mentioned_user_ids', [])
         comment = Comment.objects.create(**validated_data)
         for attachment_id in attachment_ids:
             TicketAttachment.objects.get_or_create(
                 reference_id=comment.id, attachment_id=attachment_id
             )
+        for user_id in mentioned_user_ids:
+            CommentMention.objects.create(comment_id=comment.id, mentioned_user_id=user_id)
         return comment
+
+
+class CommentUpdateSerializer(serializers.ModelSerializer):
+    attachment_ids = serializers.ListField(
+        child=serializers.IntegerField(), required=False, write_only=True
+    )
+    mentioned_user_ids = serializers.ListField(
+        child=serializers.IntegerField(), required=False, write_only=True
+    )
+
+    class Meta:
+        model = Comment
+        fields = ['message', 'attachment_ids', 'mentioned_user_ids']
+
+    def update(self, instance, validated_data):
+        attachment_ids = validated_data.pop('attachment_ids', [])
+        mentioned_user_ids = validated_data.pop('mentioned_user_ids', [])
+        instance.message = validated_data.get('message', instance.message)
+        instance.save()
+        for attachment_id in attachment_ids:
+            TicketAttachment.objects.get_or_create(
+                reference_id=instance.id, attachment_id=attachment_id
+            )
+        for user_id in mentioned_user_ids:
+            CommentMention.objects.get_or_create(
+                comment_id=instance.id, mentioned_user_id=user_id
+            )
+        return instance
 
