@@ -1,11 +1,11 @@
 
-TENANT_IDS= ["TENANT_1","TENANT_2"]
+TENANT_IDS= ["1","2"]
 
 TENANT = {
-    "TENANT_1": {
+    "1": {
         "tenant_name": "Tenant One"
     },
-    "TENANT_2": {
+    "2": {
         "tenant_name": "Tenant Two",
     }
 }
@@ -16,7 +16,7 @@ USER = {
         "user_name": "client Admin",
         "password": "test",
         "role": "CLIENT_ADMIN",
-        "tenant_id": "TENANT_1"
+        "tenant_id": "1"
     }
 }
 
