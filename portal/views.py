@@ -2,6 +2,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from accounts.decorators import require_permission
 from .models import Ticket,Comment
 from .serializers import (
     TicketCreateSerializer,
@@ -22,6 +23,7 @@ class TicketCreateView(APIView):
     }
     """
 
+    @require_permission('CREATE')
     def post(self, request):
         serializer = TicketCreateSerializer(data=request.data)
         if serializer.is_valid():

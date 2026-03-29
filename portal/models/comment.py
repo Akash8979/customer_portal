@@ -4,6 +4,7 @@ from django.db import models
 class Comment(models.Model):
     id = models.AutoField(primary_key=True)
     ticket_id = models.IntegerField()
+    tenant_id = models.CharField(max_length=100)
     user_id = models.IntegerField()
     parent_id = models.IntegerField(null=True, blank=True)
     message = models.TextField()

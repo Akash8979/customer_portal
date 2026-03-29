@@ -50,6 +50,7 @@ class Ticket(models.Model):
     category = models.CharField(max_length=30, choices=CATEGORY_CHOICES, default=CATEGORY_SUPPORT)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_OPEN)
     priority = models.CharField(max_length=20, choices=PRIORITY_CHOICES, default=PRIORITY_MEDIUM)
+    tenant_id = models.CharField(max_length=100)
     created_by = models.CharField(max_length=255)
     assigned_to = models.CharField(max_length=255, blank=True, null=True)
     due_date = models.DateTimeField(blank=True, null=True)

@@ -6,6 +6,7 @@ class Attachment(models.Model):
     file_name = models.CharField(max_length=255)
     file_type = models.CharField(max_length=100)
     file_path = models.CharField(max_length=500)
+    tenant_id = models.CharField(max_length=100)
     metadata = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
