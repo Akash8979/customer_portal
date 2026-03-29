@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Ticket, Attachment, TicketAttachment
+from .models import Ticket, Attachment, TicketAttachment, Comment
 
 
 class AttachmentSerializer(serializers.ModelSerializer):
@@ -83,4 +83,46 @@ class TicketUpdateSerializer(serializers.ModelSerializer):
                 reference_id=instance.id, attachment_id=attachment_id
             )
         return instance
+
+
+class CommentSerializer(serializers.ModelSerializer):
+    attachments = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Comment
+        fields = [
+            'id', 'ticket_id', 'user_id', 'parent_id', 'message',
+            'is_deleted', 'attachments', 'created_at', 'updated_at',
+        ]
+
+    def get_attachments(self, obj):
+        attachment_ids = TicketAttachment.objects.filter(
+            reference_id=obj.id
+        ).values_list('attachment_id', flat=True)
+        attachments = Attachment.objects.filter(id__in=attachment_ids)
+        return AttachmentSerializer(attachments, many=True).data
+
+
+class CommentCreateSerializer(serializers.ModelSerializer):
+    attachment_ids = serializers.ListField(
+        child=serializers.IntegerField(), required=False, write_only=True
+    )
+
+    class Meta:
+        model = Comment
+        fields = ['ticket_id', 'user_id', 'parent_id', 'message', 'attachment_ids']
+
+    def validate_parent_id(self, value):
+        if value is not None and not Comment.objects.filter(id=value, is_deleted=False).exists():
+            raise serializers.ValidationError('Parent comment does not exist.')
+        return value
+
+    def create(self, validated_data):
+        attachment_ids = validated_data.pop('attachment_ids', [])
+        comment = Comment.objects.create(**validated_data)
+        for attachment_id in attachment_ids:
+            TicketAttachment.objects.get_or_create(
+                reference_id=comment.id, attachment_id=attachment_id
+            )
+        return comment
 

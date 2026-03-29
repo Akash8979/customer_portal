@@ -7,10 +7,9 @@ from .serializers import (
     TicketCreateSerializer,
     TicketSerializer,
     TicketUpdateSerializer,
+    CommentCreateSerializer,
+    CommentSerializer,
 )
-
-
-
 
 class TicketCreateView(APIView):
     """
@@ -65,10 +64,28 @@ class TicketUpdateView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+class CommentCreateView(APIView):
+    """
+    POST /api/portal/comments/
+    Body: {
+        "ticket_id": 1, "user_id": 1, "message": "...",
+        "parent_id": null,           (optional — for replies)
+        "attachment_ids": [1, 2]     (optional — links via TicketAttachment)
+    }
+    """
+
+    def post(self, request):
+        serializer = CommentCreateSerializer(data=request.data)
+        if serializer.is_valid():
+            comment = serializer.save()
+            return Response(CommentSerializer(comment).data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
 class TicketAttachmentView(APIView):
     """
     POST /api/portal/attachments/
-    Body: { "file_name": "log.txt", "file_type": "text/plain", "file_path": "/uploads/log.txt", "metadata": {} }
+    Body: {"file_name": "log.txt","file_type": "text/plain","file_path": "/uploads/log.txt","metadata": {}}
     """
 
     def post(self, request):
