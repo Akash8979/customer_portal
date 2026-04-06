@@ -2,12 +2,20 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Ticket
+from accounts.decorators import require_permission
+from .models import Ticket, Comment
+from .services.email_service import (
+    send_ticket_created_email,
+    send_ticket_updated_email,
+    send_comment_created_email,
+    send_comment_updated_email,
+)
 from .serializers import (
     TicketCreateSerializer,
     TicketSerializer,
     TicketUpdateSerializer,
     CommentCreateSerializer,
+    CommentUpdateSerializer,
     CommentSerializer,
 )
 
@@ -21,10 +29,12 @@ class TicketCreateView(APIView):
     }
     """
 
+    @require_permission('CREATE')
     def post(self, request):
         serializer = TicketCreateSerializer(data=request.data)
         if serializer.is_valid():
-            ticket = serializer.save()
+            ticket = serializer.save(tenant_id=request.tenant_id)
+            send_ticket_created_email(ticket)
             return Response(TicketSerializer(ticket).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -60,6 +70,7 @@ class TicketUpdateView(APIView):
         serializer = TicketUpdateSerializer(ticket, data=request.data, partial=True)
         if serializer.is_valid():
             updated = serializer.save()
+            send_ticket_updated_email(updated)
             return Response(TicketSerializer(updated).data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -77,8 +88,37 @@ class CommentCreateView(APIView):
     def post(self, request):
         serializer = CommentCreateSerializer(data=request.data)
         if serializer.is_valid():
-            comment = serializer.save()
+            comment = serializer.save(tenant_id=request.tenant_id)
+            ticket = Ticket.objects.filter(pk=comment.ticket_id).first()
+            if ticket:
+                send_comment_created_email(comment, ticket)
             return Response(CommentSerializer(comment).data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class CommentUpdateView(APIView):
+    """
+    PATCH /api/portal/comments/<id>/update/
+    Body: {
+        "message": "...",
+        "attachment_ids": [3],        (optional — appends new attachments)
+        "mentioned_user_ids": [2, 5]  (optional — adds new mentions)
+    }
+    """
+
+    def patch(self, request, pk):
+        try:
+            comment = Comment.objects.get(pk=pk, is_deleted=False)
+        except Comment.DoesNotExist:
+            return Response({'error': 'Comment not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = CommentUpdateSerializer(comment, data=request.data, partial=True)
+        if serializer.is_valid():
+            updated = serializer.save()
+            ticket = Ticket.objects.filter(pk=updated.ticket_id).first()
+            if ticket:
+                send_comment_updated_email(updated, ticket)
+            return Response(CommentSerializer(updated).data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -92,6 +132,6 @@ class TicketAttachmentView(APIView):
         from .serializers import AttachmentSerializer
         serializer = AttachmentSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
+            serializer.save(tenant_id=request.tenant_id)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

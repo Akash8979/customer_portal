@@ -1,9 +1,11 @@
 
+TENANT_IDS= ["1","2"]
+
 TENANT = {
-    "tenant_1": {
+    "1": {
         "tenant_name": "Tenant One"
     },
-    "tenant_2": {
+    "2": {
         "tenant_name": "Tenant Two",
     }
 }
@@ -13,13 +15,13 @@ USER = {
         "user_id": 1,
         "user_name": "client Admin",
         "password": "test",
-        "role": "client_admin",
-        "tenant_id": "tenant_1"
+        "role": "CLIENT_ADMIN",
+        "tenant_id": "1"
     }
 }
 
 ROLES = {
-    "client_admin": ["create", "edit", "delete"],
-    "admin": ["create", "edit", "delete"],
-    "agent": ["create", "edit", "delete"]
+    "CLIENT_ADMIN": ["CREATE", "EDIT", "DELETE"],
+    "ADMIN": ["CREATE", "EDIT", "DELETE"],
+    "AGENT": ["CREATE", "EDIT", "DELETE"]
 }
