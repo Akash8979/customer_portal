@@ -41,6 +41,16 @@ class TicketCreateView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+class TicketListView(APIView):
+    """
+    GET /portal/tickets?tenant_id=TENANT_1
+    """
+
+    def get(self, request):
+        tickets = Ticket.objects.filter(tenant_id=request.tenant_id)
+        return Response(TicketSerializer(tickets, many=True).data)
+
+
 class TicketDetailView(APIView):
     """
     GET /api/portal/tickets/<id>/
