@@ -17,6 +17,13 @@ USER = {
         "password": "test",
         "role": "CLIENT_ADMIN",
         "tenant_id": "1"
+    },
+    "internal_agent_test_1@gmail.com": {
+        "user_id": 2,
+        "user_name": "Internal Admin",
+        "password": "test",
+        "role": "AGENT",
+        "tenant_id": ""
     }
 }
 

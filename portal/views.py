@@ -10,6 +10,7 @@ from .services.email_service import (
     send_comment_created_email,
     send_comment_updated_email,
 )
+from .services.notification_service import notify_ticket_created
 from .serializers import (
     TicketCreateSerializer,
     TicketSerializer,
@@ -35,6 +36,7 @@ class TicketCreateView(APIView):
         if serializer.is_valid():
             ticket = serializer.save(tenant_id=request.tenant_id)
             send_ticket_created_email(ticket)
+            notify_ticket_created(ticket)
             return Response(TicketSerializer(ticket).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -73,6 +75,7 @@ class TicketUpdateView(APIView):
             send_ticket_updated_email(updated)
             return Response(TicketSerializer(updated).data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
 
 
 class CommentCreateView(APIView):
