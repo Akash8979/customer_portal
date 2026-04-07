@@ -13,8 +13,8 @@ def notify_ticket_created(ticket):
         return
 
     payload = {
-        "ticket_id": ticket.id,
-        "name": ticket.title,
+        "id": ticket.id,
+        "title": ticket.title,
         "description": ticket.description,
     }
 
