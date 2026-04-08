@@ -81,7 +81,7 @@ class LoginView(APIView):
         permissions = ROLES.get(role, [])
         tenant_id = user_data.get('tenant_id')
         tenant_data = TENANT.get(tenant_id, {})
-        return Response({
+        response  =  Response({
             'message': 'Login successful.',
             'tokens': tokens,
             'user': {
@@ -94,6 +94,15 @@ class LoginView(APIView):
                 'tenant_name': tenant_data.get('tenant_name'),
             },
         }, status=status.HTTP_200_OK)
+        # Set JWT in cookie
+        response.set_cookie(
+            key="token",
+            value=tokens['access'],
+            httponly=True,
+            secure=True,        # True in production (HTTPS)
+            samesite="Lax",     # or 'Strict' / 'None'
+        )
+        return response
 
 
 class RefreshTokenView(APIView):
