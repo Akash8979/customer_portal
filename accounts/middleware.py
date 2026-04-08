@@ -22,10 +22,11 @@ class JWTAuthMiddleware:
             return self.get_response(request)
 
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-        if not auth_header.startswith('Bearer '):
+        cookies_ = request.COOKIES
+        if not auth_header.startswith('Bearer ') and not cookies_:
             return JsonResponse({'error': 'Authorization header missing or invalid.'}, status=401)
 
-        token = auth_header.split(' ', 1)[1]
+        token = cookies_['token'] if cookies_ else auth_header.split(' ', 1)[1]
 
         try:
             payload = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
