@@ -26,7 +26,7 @@ DATE_FORMAT = "%Y-%m-%d"
 VALID_RESPONSE_CODES = [200, 201, 204]
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
