@@ -1,14 +1,12 @@
 import time
-
 import jwt
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-
 from accounts.constant import USER, ROLES, TENANT
 
 SECRET_KEY = 'customer-portal-secret-key'
-ACCESS_TOKEN_EXPIRY = 60 * 60 * 14         # 14 hours
+ACCESS_TOKEN_EXPIRY = 60 * 60 * 24         # 14 hours
 REFRESH_TOKEN_EXPIRY = 60 * 60 * 24 * 365  # 1 year
 
 
