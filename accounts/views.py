@@ -49,9 +49,6 @@ class LoginView(APIView):
     """
 
     def post(self, request):
-        return Response({
-            'message': 'Login successful.'
-        }, status=status.HTTP_200_OK)
         email = request.data.get('email')
         password = request.data.get('password')
 
@@ -96,13 +93,13 @@ class LoginView(APIView):
             },
         }, status=status.HTTP_200_OK)
         # Set JWT in cookie
-        # response.set_cookie(
-        #     key="token",
-        #     value=tokens['access'],
-        #     httponly=True,
-        #     secure=True,        # True in production (HTTPS)
-        #     samesite="Lax",     # or 'Strict' / 'None'
-        # )
+        response.set_cookie(
+            key="token",
+            value=tokens['access'],
+            httponly=True,
+            secure=True,        # True in production (HTTPS)
+            samesite="Lax",     # or 'Strict' / 'None'
+        )
         return response
 
 
