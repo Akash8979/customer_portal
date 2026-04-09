@@ -93,13 +93,13 @@ class LoginView(APIView):
             },
         }, status=status.HTTP_200_OK)
         # Set JWT in cookie
-        response.set_cookie(
-            key="token",
-            value=tokens['access'],
-            httponly=True,
-            secure=True,        # True in production (HTTPS)
-            samesite="Lax",     # or 'Strict' / 'None'
-        )
+        # response.set_cookie(
+        #     key="token",
+        #     value=tokens['access'],
+        #     httponly=True,
+        #     secure=True,        # True in production (HTTPS)
+        #     samesite="Lax",     # or 'Strict' / 'None'
+        # )
         return response
 
 
