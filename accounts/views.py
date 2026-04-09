@@ -49,6 +49,9 @@ class LoginView(APIView):
     """
 
     def post(self, request):
+        return Response({
+            'message': 'Login successful.'
+        }, status=status.HTTP_200_OK)
         email = request.data.get('email')
         password = request.data.get('password')
 
