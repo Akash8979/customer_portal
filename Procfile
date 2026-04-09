@@ -1,1 +1,1 @@
-web: python manage.py migrate && gunicorn customer_portal.wsgi:application --bind 0.0.0.0:$PORT --workers 3
+web: python manage.py migrate && gunicorn customer_portal.wsgi:application --bind 0.0.0.0:$PORT --workers 1
