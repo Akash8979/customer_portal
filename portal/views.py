@@ -35,7 +35,7 @@ class TicketCreateView(APIView):
         serializer = TicketCreateSerializer(data=request.data)
         if serializer.is_valid():
             ticket = serializer.save(tenant_id=request.tenant_id)
-            send_ticket_created_email(ticket)
+            # send_ticket_created_email(ticket)
             notify_ticket_created(ticket)
             return Response(TicketSerializer(ticket).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
