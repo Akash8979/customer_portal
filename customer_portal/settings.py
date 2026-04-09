@@ -156,8 +156,10 @@ LOGS_FOLDER = 'logs'
 LOGS_FOLDER_PATH = os.path.join(BASE_DIR, LOGS_FOLDER)
 
 # Check if the logs folder exists, if not, create it
-if not os.path.exists(LOGS_FOLDER_PATH):
+try:
     os.makedirs(LOGS_FOLDER_PATH, exist_ok=True)
+except OSError:
+    pass
 
 # Define the logging configuration
 LOGGING = {
@@ -189,7 +191,7 @@ LOGGING = {
             "level": "DEBUG",
             "backupCount": 10,
             "maxBytes":  50*1024*1024,  # 50 MB
-            'delay': True,  # Add delay to handle permission errors
+            'delay': True,  # Add delay to handle permission errors; also prevents crash if folder is missing
             },
 
         'django.server': DEFAULT_LOGGING['handlers']['django.server'],
@@ -198,12 +200,12 @@ LOGGING = {
         # default for all undefined Python modules
         '': {
             'level': 'WARNING',
-            'handlers': ['console', 'log_file_handler'],
+            'handlers': ['console', 'log_file_handler'] if os.path.isdir(LOGS_FOLDER_PATH) else ['console'],
         },
         # Our application code
         'app': {
             'level': LOGLEVEL,
-            'handlers': ['console', 'log_file_handler'],
+            'handlers': ['console', 'log_file_handler'] if os.path.isdir(LOGS_FOLDER_PATH) else ['console'],
             'propagate': False,     # Prevent propagation to higher-level(double logging because of root logger) loggers
         },
         # Default runserver request logging
