@@ -98,7 +98,7 @@ class LoginView(APIView):
             value=tokens['access'],
             httponly=True,
             secure=True,        # True in production (HTTPS)
-            samesite="Lax",     # or 'Strict' / 'None'
+            samesite="none",     # or 'Strict' / 'None'
         )
         return response
 
