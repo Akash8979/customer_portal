@@ -37,7 +37,8 @@ class TicketCreateView(APIView):
             ticket = serializer.save(tenant_id=request.tenant_id)
             # send_ticket_created_email(ticket)
             notify_ticket_created(ticket)
-            return Response(TicketSerializer(ticket).data, status=status.HTTP_201_CREATED)
+            data = TicketSerializer(ticket).data
+            return Response({"data":data}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -48,7 +49,8 @@ class TicketListView(APIView):
 
     def get(self, request):
         tickets = Ticket.objects.filter(tenant_id=request.tenant_id)
-        return Response(TicketSerializer(tickets, many=True).data)
+        data = TicketSerializer(tickets, many=True).data
+        return Response({"data":data,"total":1,"page":1,"page_size":1,"total_pages":1})
 
 
 class TicketDetailView(APIView):
@@ -61,7 +63,8 @@ class TicketDetailView(APIView):
             ticket = Ticket.objects.get(pk=pk)
         except Ticket.DoesNotExist:
             return Response({'error': 'Ticket not found.'}, status=status.HTTP_404_NOT_FOUND)
-        return Response(TicketSerializer(ticket).data)
+        data = TicketSerializer(ticket).data
+        return Response({"data":data})
 
 
 class TicketUpdateView(APIView):
@@ -83,7 +86,8 @@ class TicketUpdateView(APIView):
         if serializer.is_valid():
             updated = serializer.save()
             send_ticket_updated_email(updated)
-            return Response(TicketSerializer(updated).data)
+            data = TicketSerializer(updated).data
+            return Response({"data":data})
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
 
@@ -105,7 +109,8 @@ class CommentCreateView(APIView):
             ticket = Ticket.objects.filter(pk=comment.ticket_id).first()
             if ticket:
                 send_comment_created_email(comment, ticket)
-            return Response(CommentSerializer(comment).data, status=status.HTTP_201_CREATED)
+            data = CommentSerializer(comment).data    
+            return Response({"data":data}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -131,7 +136,8 @@ class CommentUpdateView(APIView):
             ticket = Ticket.objects.filter(pk=updated.ticket_id).first()
             if ticket:
                 send_comment_updated_email(updated, ticket)
-            return Response(CommentSerializer(updated).data)
+            data = CommentSerializer(updated).data    
+            return Response({"data":data})
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -146,5 +152,6 @@ class TicketAttachmentView(APIView):
         serializer = AttachmentSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save(tenant_id=request.tenant_id)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            data = serializer.data
+            return Response({"data":data}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
