@@ -158,3 +158,32 @@ class LogoutView(APIView):
 
     def post(self, request):
         return Response({'message': 'Logged out successfully.'}, status=status.HTTP_200_OK)
+
+
+class MeView(APIView):
+    """
+    GET /api/accounts/me/?tenant_id=<tenant_id>
+    Returns the logged-in user's details from the JWT token.
+    """
+
+    def get(self, request):
+        email = request.email
+        user_data = USER.get(email)
+        if user_data is None:
+            return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        role = user_data.get('role')
+        tenant_id = user_data.get('tenant_id')
+        tenant_data = TENANT.get(tenant_id, {})
+
+        return Response({
+            'data': {
+                'user_id': request.user_id,
+                'user_name': request.user_name,
+                'email': email,
+                'role': role,
+                'permissions': ROLES.get(role, []),
+                'tenant_id': tenant_id,
+                'tenant_name': tenant_data.get('tenant_name'),
+            }
+        }, status=status.HTTP_200_OK)
