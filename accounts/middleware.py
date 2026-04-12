@@ -27,7 +27,7 @@ class JWTAuthMiddleware:
         if not auth_header.startswith('Bearer ') and not cookies_:
             return JsonResponse({'error': 'Authorization header missing or invalid.'}, status=401)
 
-        token = cookies_['token'] if cookies_ else auth_header.split(' ', 1)[1]
+        token = auth_header.split(' ', 1)[1] if auth_header else cookies_['token']
 
         try:
             payload = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
@@ -46,14 +46,11 @@ class JWTAuthMiddleware:
         if tenant_id not in TENANT:
             return JsonResponse({'error': f'Tenant "{tenant_id}" does not exist.'}, status=400)
 
-        payload['created_by'] = payload.get('user_id')
-        payload['updated_at'] = datetime.now(timezone.utc).isoformat()
-
         request.user_id = payload.get('user_id')
         request.user_name = payload.get('user_name')
         request.email = payload.get('email')
         request.tenant_id = tenant_id
-        request.created_by = payload.get('created_by')
+        request.created_by = payload.get('user_id')
         request.updated_at = payload.get('updated_at')
 
         return self.get_response(request)

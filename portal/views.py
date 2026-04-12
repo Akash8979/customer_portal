@@ -32,7 +32,7 @@ class TicketCreateView(APIView):
 
     @require_permission('CREATE')
     def post(self, request):
-        serializer = TicketCreateSerializer(data=request.data)
+        serializer = TicketCreateSerializer(data={**request.data,"created_by":request.created_by})
         if serializer.is_valid():
             ticket = serializer.save(tenant_id=request.tenant_id)
             # send_ticket_created_email(ticket)
