@@ -1,5 +1,4 @@
 import jwt
-from datetime import datetime, timezone
 from django.http import JsonResponse
 
 from accounts.constant import TENANT
