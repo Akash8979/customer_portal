@@ -1,4 +1,5 @@
 import jwt
+from datetime import datetime, timezone
 from django.http import JsonResponse
 
 from accounts.constant import TENANT
@@ -45,9 +46,14 @@ class JWTAuthMiddleware:
         if tenant_id not in TENANT:
             return JsonResponse({'error': f'Tenant "{tenant_id}" does not exist.'}, status=400)
 
+        payload['created_by'] = payload.get('user_id')
+        payload['updated_at'] = datetime.now(timezone.utc).isoformat()
+
         request.user_id = payload.get('user_id')
         request.user_name = payload.get('user_name')
         request.email = payload.get('email')
         request.tenant_id = tenant_id
+        request.created_by = payload.get('created_by')
+        request.updated_at = payload.get('updated_at')
 
         return self.get_response(request)
