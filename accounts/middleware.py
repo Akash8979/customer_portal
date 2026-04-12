@@ -1,4 +1,5 @@
 import jwt
+from datetime import datetime, timezone
 from django.http import JsonResponse
 
 from accounts.constant import TENANT
@@ -26,7 +27,7 @@ class JWTAuthMiddleware:
         if not auth_header.startswith('Bearer ') and not cookies_:
             return JsonResponse({'error': 'Authorization header missing or invalid.'}, status=401)
 
-        token = cookies_['token'] if cookies_ else auth_header.split(' ', 1)[1]
+        token = auth_header.split(' ', 1)[1] if auth_header else cookies_['token']
 
         try:
             payload = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
@@ -49,5 +50,7 @@ class JWTAuthMiddleware:
         request.user_name = payload.get('user_name')
         request.email = payload.get('email')
         request.tenant_id = tenant_id
+        request.created_by = payload.get('user_id')
+        request.updated_at = payload.get('updated_at')
 
         return self.get_response(request)
