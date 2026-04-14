@@ -1,3 +1,4 @@
+from django.db.models import Count, Q
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -139,6 +140,40 @@ class CommentUpdateView(APIView):
             data = CommentSerializer(updated).data    
             return Response({"data":data})
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class TicketKPIView(APIView):
+    """
+    GET /portal/tickets/kpis?tenant_id=<tenant_id>
+    Returns an overview of ticket counts grouped by status and priority.
+    """
+
+    def get(self, request):
+        qs = Ticket.objects.filter(tenant_id=request.tenant_id)
+
+        status_counts = qs.aggregate(
+            open=Count('id', filter=Q(status=Ticket.STATUS_OPEN)),
+            acknowledged=Count('id', filter=Q(status=Ticket.STATUS_ACKNOWLEDGED)),
+            in_progress=Count('id', filter=Q(status=Ticket.STATUS_IN_PROGRESS)),
+            resolved=Count('id', filter=Q(status=Ticket.STATUS_RESOLVED)),
+            closed=Count('id', filter=Q(status=Ticket.STATUS_CLOSED)),
+            reopened=Count('id', filter=Q(status=Ticket.STATUS_REOPENED)),
+        )
+
+        priority_counts = qs.aggregate(
+            low=Count('id', filter=Q(priority=Ticket.PRIORITY_LOW)),
+            medium=Count('id', filter=Q(priority=Ticket.PRIORITY_MEDIUM)),
+            high=Count('id', filter=Q(priority=Ticket.PRIORITY_HIGH)),
+            critical=Count('id', filter=Q(priority=Ticket.PRIORITY_CRITICAL)),
+        )
+
+        return Response({
+            "data": {
+                "total": qs.count(),
+                "by_status": status_counts,
+                "by_priority": priority_counts,
+            }
+        })
 
 
 class TicketAttachmentView(APIView):
