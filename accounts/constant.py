@@ -16,7 +16,7 @@ USER = {
         "user_name": "client Admin",
         "password": "test",
         "role": "CLIENT_ADMIN",
-        "tenant_id": "1"
+        "tenant_id": ""
     },
     "internal_agent_test_1@gmail.com": {
         "user_id": 2,
