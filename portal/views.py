@@ -12,6 +12,7 @@ from .services.email_service import (
     send_comment_updated_email,
 )
 from .services.notification_service import notify_ticket_created
+from .services.sla_service import initialize_sla_for_ticket
 from .serializers import (
     TicketCreateSerializer,
     TicketSerializer,
@@ -36,6 +37,7 @@ class TicketCreateView(APIView):
         serializer = TicketCreateSerializer(data={**request.data,"created_by":request.created_by})
         if serializer.is_valid():
             ticket = serializer.save(tenant_id=request.tenant_id)
+            initialize_sla_for_ticket(ticket)
             # send_ticket_created_email(ticket)
             notify_ticket_created(ticket)
             data = TicketSerializer(ticket).data
