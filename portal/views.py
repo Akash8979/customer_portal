@@ -13,6 +13,7 @@ from .services.email_service import (
 )
 from .services.notification_service import notify_ticket_created
 from .services.sla_service import initialize_sla_for_ticket
+from .publishers import publish_ticket_created, publish_ticket_status, publish_new_comment
 from .serializers import (
     TicketCreateSerializer,
     TicketSerializer,
@@ -39,6 +40,7 @@ class TicketCreateView(APIView):
         if serializer.is_valid():
             ticket = serializer.save(tenant_id=request.tenant_id)
             initialize_sla_for_ticket(ticket)
+            # publish_ticket_created(request.tenant_id, ticket)
             # send_ticket_created_email(ticket)
             notify_ticket_created(ticket)
             data = TicketSerializer(ticket).data
@@ -149,10 +151,10 @@ class CommentCreateView(APIView):
         serializer = CommentCreateSerializer(data=request.data)
         if serializer.is_valid():
             comment = serializer.save(tenant_id=request.tenant_id)
-            ticket = Ticket.objects.filter(pk=comment.ticket_id).first()
+            # publish_new_comment(request.tenant_id, comment)
             # if ticket:
             #     send_comment_created_email(comment, ticket)
-            data = CommentSerializer(comment).data    
+            data = CommentSerializer(comment).data
             return Response({"data":data}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -233,6 +235,8 @@ class TicketStatusUpdateView(APIView):
         serializer = TicketStatusUpdateSerializer(ticket, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
+            ticket.refresh_from_db()
+            # publish_ticket_status(request.tenant_id, ticket)
             data = TicketSerializer(ticket).data
             return Response({'data': data})
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

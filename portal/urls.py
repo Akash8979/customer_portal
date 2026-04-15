@@ -4,6 +4,7 @@ from .views import (
     TicketStatusUpdateView, TicketAttachmentView, CommentCreateView,
     CommentUpdateView, TicketKPIView, TicketCommentListView,
 )
+from .sse import TicketStreamView
 
 urlpatterns = [
     path('dashboard/kpis', TicketKPIView.as_view(), name='ticket-kpis'),
@@ -16,4 +17,5 @@ urlpatterns = [
     path('attachments', TicketAttachmentView.as_view(), name='ticket-attachments'),
     path('comments', CommentCreateView.as_view(), name='comment-create'),
     path('comments/<int:pk>/update', CommentUpdateView.as_view(), name='comment-update'),
+    path('stream', TicketStreamView, name='ticket-stream'),
 ]
