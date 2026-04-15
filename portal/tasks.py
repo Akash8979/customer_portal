@@ -3,6 +3,7 @@ from django.db.models import Q
 from django.utils import timezone
 from celery import shared_task
 from .models.sla import SLATracking
+from .publishers import publish_sla_breach
 
 logger = logging.getLogger(__name__)
 
@@ -28,10 +29,11 @@ def check_sla():
     pending_records = SLATracking.objects.filter(
         Q(response_status=SLATracking.STATUS_PENDING) |
         Q(resolution_status=SLATracking.STATUS_PENDING)
-    )
+    ).select_related('ticket_id')
 
     for record in pending_records:
         changed = False
+        breached = False
 
         # --- Response SLA ---
         if record.response_status == SLATracking.STATUS_PENDING and record.response_due_at:
@@ -46,6 +48,7 @@ def check_sla():
             elif now > record.response_due_at:
                 record.response_status = SLATracking.STATUS_BREACHED
                 changed = True
+                breached = True
                 updated_response += 1
 
         # --- Resolution SLA ---
@@ -61,10 +64,14 @@ def check_sla():
             elif now > record.resolution_due_at:
                 record.resolution_status = SLATracking.STATUS_BREACHED
                 changed = True
+                breached = True
                 updated_resolution += 1
 
         if changed:
             record.save(update_fields=['response_status', 'resolution_status', 'updated_at'])
+            if breached:
+                tenant_id = record.ticket_id.tenant_id
+                publish_sla_breach(tenant_id, record)
 
     logger.info(
         'SLA check complete — response updates: %d, resolution updates: %d',
