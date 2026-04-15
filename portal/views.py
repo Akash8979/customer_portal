@@ -32,7 +32,7 @@ class TicketCreateView(APIView):
     }
     """
 
-    @require_permission('CREATE')
+    @require_permission('TICKET_CREATE')
     def post(self, request):
         serializer = TicketCreateSerializer(data={**request.data,"created_by":request.created_by})
         if serializer.is_valid():
