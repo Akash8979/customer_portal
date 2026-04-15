@@ -59,6 +59,18 @@ class TicketCreateSerializer(serializers.ModelSerializer):
         return ticket
 
 
+class TicketStatusUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Ticket
+        fields = ['status']
+
+    def validate_status(self, value):
+        valid = [s[0] for s in Ticket.STATUS_CHOICES]
+        if value not in valid:
+            raise serializers.ValidationError(f"Invalid status. Must be one of: {valid}")
+        return value
+
+
 class TicketUpdateSerializer(serializers.ModelSerializer):
     # New attachment IDs to append to the ticket
     attachment_ids = serializers.ListField(

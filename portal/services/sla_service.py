@@ -31,7 +31,7 @@ def initialize_sla_for_ticket(ticket):
     now = timezone.now()
 
     SLATracking.objects.create(
-        ticket_id=ticket,
+        ticket_id_id=ticket.id,
         sla_policy=policy,
         response_due_at=now + timedelta(minutes=policy.response_time_minutes),
         resolution_due_at=now + timedelta(minutes=policy.resolution_time_minutes),

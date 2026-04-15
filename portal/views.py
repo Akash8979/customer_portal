@@ -16,6 +16,7 @@ from .services.sla_service import initialize_sla_for_ticket
 from .serializers import (
     TicketCreateSerializer,
     TicketSerializer,
+    TicketStatusUpdateSerializer,
     TicketUpdateSerializer,
     CommentCreateSerializer,
     CommentUpdateSerializer,
@@ -37,7 +38,7 @@ class TicketCreateView(APIView):
         serializer = TicketCreateSerializer(data={**request.data,"created_by":request.created_by})
         if serializer.is_valid():
             ticket = serializer.save(tenant_id=request.tenant_id)
-            # initialize_sla_for_ticket(ticket)
+            initialize_sla_for_ticket(ticket)
             # send_ticket_created_email(ticket)
             notify_ticket_created(ticket)
             data = TicketSerializer(ticket).data
@@ -47,13 +48,52 @@ class TicketCreateView(APIView):
 
 class TicketListView(APIView):
     """
-    GET /portal/tickets?tenant_id=TENANT_1
+    GET /portal/tickets/list?tenant_id=<tenant_id>
+
+    Query params:
+      Pagination : page (default 1), page_size (default 10, max 100)
+      Search     : search — matches against title, description
+      Filters    : status, priority, category, assigned_to, created_by
     """
 
     def get(self, request):
-        tickets = Ticket.objects.filter(tenant_id=request.tenant_id)
+        qs = Ticket.objects.filter(tenant_id=request.tenant_id)
+
+        # --- Search ---
+        search = request.query_params.get('search', '').strip()
+        if search:
+            qs = qs.filter(
+                Q(title__icontains=search) | Q(description__icontains=search)
+            )
+
+        # --- Filters ---
+        for field in ('status', 'priority', 'category', 'assigned_to', 'created_by'):
+            value = request.query_params.get(field, '').strip()
+            if value:
+                qs = qs.filter(**{field: value})
+
+        # --- Pagination ---
+        total = qs.count()
+        try:
+            page = max(1, int(request.query_params.get('page', 1)))
+            page_size = min(100, max(1, int(request.query_params.get('page_size', 10))))
+        except ValueError:
+            page, page_size = 1, 10
+
+        total_pages = max(1, (total + page_size - 1) // page_size)
+        page = min(page, total_pages)
+        offset = (page - 1) * page_size
+
+        tickets = qs[offset: offset + page_size]
         data = TicketSerializer(tickets, many=True).data
-        return Response({"data":data,"total":1,"page":1,"page_size":1,"total_pages":1})
+
+        return Response({
+            "data": data,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": total_pages,
+        })
 
 
 class TicketDetailView(APIView):
@@ -176,6 +216,45 @@ class TicketKPIView(APIView):
                 "by_priority": priority_counts,
             }
         })
+
+
+class TicketStatusUpdateView(APIView):
+    """
+    PATCH /portal/tickets/<pk>/status?tenant_id=<tenant_id>
+    Body: { "status": "IN_PROGRESS" }
+    """
+
+    def patch(self, request, pk):
+        try:
+            ticket = Ticket.objects.get(pk=pk, tenant_id=request.tenant_id)
+        except Ticket.DoesNotExist:
+            return Response({'error': 'Ticket not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = TicketStatusUpdateSerializer(ticket, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            data = TicketSerializer(ticket).data
+            return Response({'data': data})
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class TicketCommentListView(APIView):
+    """
+    GET /portal/tickets/<pk>/comments?tenant_id=<tenant_id>
+    Returns all non-deleted comments for a ticket with their attachments and mentions.
+    """
+
+    def get(self, request, pk):
+        if not Ticket.objects.filter(pk=pk, tenant_id=request.tenant_id).exists():
+            return Response({'error': 'Ticket not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        comments = Comment.objects.filter(
+            ticket_id=pk,
+            tenant_id=request.tenant_id,
+            is_deleted=False,
+        )
+        data = CommentSerializer(comments, many=True).data
+        return Response({'data': data})
 
 
 class TicketAttachmentView(APIView):

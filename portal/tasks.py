@@ -1,4 +1,5 @@
 import logging
+from django.db.models import Q
 from django.utils import timezone
 from celery import shared_task
 from .models.sla import SLATracking
@@ -25,20 +26,11 @@ def check_sla():
     updated_resolution = 0
     
     pending_records = SLATracking.objects.filter(
-        response_status=SLATracking.STATUS_PENDING,
-    ).select_related('ticket_id') | SLATracking.objects.filter(
-        resolution_status=SLATracking.STATUS_PENDING,
-    ).select_related('ticket_id')
+        Q(response_status=SLATracking.STATUS_PENDING) |
+        Q(resolution_status=SLATracking.STATUS_PENDING)
+    )
 
-    # Deduplicate (union above may produce duplicates for same record)
-    seen = set()
-    records = []
     for record in pending_records:
-        if record.pk not in seen:
-            seen.add(record.pk)
-            records.append(record)
-
-    for record in records:
         changed = False
 
         # --- Response SLA ---
