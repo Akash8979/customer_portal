@@ -178,6 +178,25 @@ class TicketKPIView(APIView):
         })
 
 
+class TicketCommentListView(APIView):
+    """
+    GET /portal/tickets/<pk>/comments?tenant_id=<tenant_id>
+    Returns all non-deleted comments for a ticket with their attachments and mentions.
+    """
+
+    def get(self, request, pk):
+        if not Ticket.objects.filter(pk=pk, tenant_id=request.tenant_id).exists():
+            return Response({'error': 'Ticket not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        comments = Comment.objects.filter(
+            ticket_id=pk,
+            tenant_id=request.tenant_id,
+            is_deleted=False,
+        )
+        data = CommentSerializer(comments, many=True).data
+        return Response({'data': data})
+
+
 class TicketAttachmentView(APIView):
     """
     POST /api/portal/attachments/
