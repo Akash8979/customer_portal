@@ -38,17 +38,17 @@ class JWTAuthMiddleware:
         if payload.get('token_type') != 'access':
             return JsonResponse({'error': 'Invalid token type. Expected access token.'}, status=401)
 
-        tenant_id = request.GET.get('tenant_id')
-        if not tenant_id and ['CLIENT_ADMIN','CLIENT_USER']:
-            return JsonResponse({'error': 'tenant_id is required as a query parameter.'}, status=400)
+        # tenant_id = request.GET.get('tenant_id')
+        # if not tenant_id and ['CLIENT_ADMIN','CLIENT_USER']:
+        #     return JsonResponse({'error': 'tenant_id is required as a query parameter.'}, status=400)
 
-        if tenant_id not in TENANT:
-            return JsonResponse({'error': f'Tenant "{tenant_id}" does not exist.'}, status=400)
+        # if tenant_id not in TENANT:
+        #     return JsonResponse({'error': f'Tenant "{tenant_id}" does not exist.'}, status=400)
 
         request.user_id = payload.get('user_id')
         request.user_name = payload.get('user_name')
         request.email = payload.get('email')
-        request.tenant_id = tenant_id
+        # request.tenant_id = tenant_id
         request.created_by = payload.get('user_id')
         request.updated_at = payload.get('updated_at')
 
