@@ -37,7 +37,7 @@ class TicketCreateView(APIView):
         serializer = TicketCreateSerializer(data={**request.data,"created_by":request.created_by})
         if serializer.is_valid():
             ticket = serializer.save(tenant_id=request.tenant_id)
-            initialize_sla_for_ticket(ticket)
+            # initialize_sla_for_ticket(ticket)
             # send_ticket_created_email(ticket)
             notify_ticket_created(ticket)
             data = TicketSerializer(ticket).data
