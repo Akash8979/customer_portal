@@ -82,8 +82,9 @@ class TicketListView(APIView):
         except ValueError:
             page, page_size = 1, 10
 
-        total_pages = max(1, (total + page_size - 1) // page_size)
-        page = min(page, total_pages)
+        import math
+        total_pages = math.ceil(total / page_size) if total > 0 else 0
+        page = min(page, total_pages) if total_pages > 0 else 1
         offset = (page - 1) * page_size
 
         tickets = qs[offset: offset + page_size]
