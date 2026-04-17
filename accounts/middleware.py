@@ -6,6 +6,7 @@ from accounts.constant import TENANT,ROLES
 SECRET_KEY = 'customer-portal-secret-key'
 
 EXEMPT_PATHS = [
+    '/health',
     '/portal/user/login',
     '/portal/user/token/refresh/',
     '/portal/user/logout/',
