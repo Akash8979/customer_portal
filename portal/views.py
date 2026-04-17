@@ -59,7 +59,13 @@ class TicketListView(APIView):
     """
 
     def get(self, request):
-        qs = Ticket.objects.filter(tenant_id=request.tenant_id)
+        from accounts.constant import USER
+        user = USER.get(request.email, {})
+        role = user.get('role', '')
+        if role in ('CLIENT_ADMIN', 'CLIENT_USER'):
+            qs = Ticket.objects.filter(tenant_id=request.tenant_id)
+        else:
+            qs = Ticket.objects.all()
 
         # --- Search ---
         search = request.query_params.get('search', '').strip()
@@ -151,7 +157,14 @@ class CommentCreateView(APIView):
     def post(self, request):
         serializer = CommentCreateSerializer(data=request.data)
         if serializer.is_valid():
-            comment = serializer.save(tenant_id=request.tenant_id)
+            # Use ticket's tenant_id so internal-user comments are visible to clients
+            ticket_id = serializer.validated_data.get('ticket_id')
+            tenant_id = request.tenant_id
+            if not tenant_id and ticket_id:
+                t = Ticket.objects.filter(pk=ticket_id).first()
+                if t:
+                    tenant_id = t.tenant_id
+            comment = serializer.save(tenant_id=tenant_id)
             # publish_new_comment(request.tenant_id, comment)
             # if ticket:
             #     send_comment_created_email(comment, ticket)
@@ -194,7 +207,13 @@ class TicketKPIView(APIView):
     """
 
     def get(self, request):
-        qs = Ticket.objects.filter(tenant_id=request.tenant_id)
+        from accounts.constant import USER
+        user = USER.get(request.email, {})
+        role = user.get('role', '')
+        if role in ('CLIENT_ADMIN', 'CLIENT_USER'):
+            qs = Ticket.objects.filter(tenant_id=request.tenant_id)
+        else:
+            qs = Ticket.objects.all()
 
         status_counts = qs.aggregate(
             open=Count('id', filter=Q(status=Ticket.STATUS_OPEN)),
@@ -250,14 +269,20 @@ class TicketCommentListView(APIView):
     """
 
     def get(self, request, pk):
-        if not Ticket.objects.filter(pk=pk, tenant_id=request.tenant_id).exists():
+        from accounts.constant import USER
+        role = USER.get(request.email, {}).get('role', '')
+        is_internal = role in ('AGENT', 'LEAD', 'ADMIN')
+
+        ticket_qs = Ticket.objects.filter(pk=pk)
+        if not is_internal:
+            ticket_qs = ticket_qs.filter(tenant_id=request.tenant_id)
+        if not ticket_qs.exists():
             return Response({'error': 'Ticket not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        comments = Comment.objects.filter(
-            ticket_id=pk,
-            tenant_id=request.tenant_id,
-            is_deleted=False,
-        )
+        comments = Comment.objects.filter(ticket_id=pk, is_deleted=False)
+        if not is_internal:
+            comments = comments.filter(tenant_id=request.tenant_id)
+
         data = CommentSerializer(comments, many=True).data
         return Response({'data': data})
 

@@ -20,15 +20,36 @@ class TicketAttachmentSerializer(serializers.ModelSerializer):
 
 class TicketSerializer(serializers.ModelSerializer):
     attachments = serializers.SerializerMethodField()
+    sla = serializers.SerializerMethodField()
 
     class Meta:
         model = Ticket
         fields = [
-            'id', 'title', 'description', 'category', 'status', 'priority',
+            'id', 'title', 'description', 'category', 'status', 'priority', 'severity',
             'tenant_id', 'created_by', 'assigned_to', 'due_date', 'resolved_at', 'closed_at',
-            'comments', 'attachments', 'created_at', 'updated_at',
+            'comments', 'attachments',
+            'tags', 'internal_note', 'source', 'sentiment_score',
+            'is_escalated', 'escalated_at',
+            'csat_rating', 'csat_comment',
+            'duplicate_of', 'linked_bug_id', 'linked_feature_id',
+            'sla', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'status', 'tenant_id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'tenant_id', 'created_at', 'updated_at']
+
+    def get_sla(self, obj):
+        try:
+            from .models.sla import SLATracking
+            sla = SLATracking.objects.get(ticket_id=obj.id)
+            return {
+                'response_due_at': sla.response_due_at,
+                'responded_at': sla.responded_at,
+                'response_status': sla.response_status,
+                'resolution_due_at': sla.resolution_due_at,
+                'resolved_at': sla.resolved_at,
+                'resolution_status': sla.resolution_status,
+            }
+        except Exception:
+            return None
 
     def get_attachments(self, obj):
         attachment_ids = TicketAttachment.objects.filter(
@@ -39,7 +60,6 @@ class TicketSerializer(serializers.ModelSerializer):
 
 
 class TicketCreateSerializer(serializers.ModelSerializer):
-    # List of existing attachment IDs to link after ticket creation
     attachment_ids = serializers.ListField(
         child=serializers.IntegerField(), required=False, write_only=True
     )
@@ -47,8 +67,8 @@ class TicketCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ticket
         fields = [
-            'title', 'description', 'category', 'priority',
-            'created_by', 'due_date', 'comments', 'attachment_ids',
+            'title', 'description', 'category', 'priority', 'severity',
+            'created_by', 'due_date', 'comments', 'tags', 'source', 'attachment_ids',
         ]
 
     def create(self, validated_data):
@@ -80,9 +100,13 @@ class TicketUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ticket
         fields = [
-            'title', 'description', 'category', 'status', 'priority',
+            'title', 'description', 'category', 'status', 'priority', 'severity',
             'assigned_to', 'due_date', 'resolved_at', 'closed_at',
-            'comments', 'attachment_ids',
+            'comments', 'tags', 'internal_note', 'source', 'sentiment_score',
+            'is_escalated', 'escalated_at',
+            'csat_rating', 'csat_comment',
+            'duplicate_of', 'linked_bug_id', 'linked_feature_id',
+            'attachment_ids',
         ]
 
     def update(self, instance, validated_data):
