@@ -4,13 +4,10 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.constant import ROLES, USER, TENANT
+from accounts.constant import ROLES, TENANT
 from accounts.decorators import require_permission
 from .models import UserProfile
-from .serializers import (
-    UserProfileSerializer, UserCreateSerializer,
-    UserUpdateSerializer, RolePermissionMapSerializer,
-)
+from .serializers import UserProfileSerializer, UserCreateSerializer, UserUpdateSerializer
 
 
 def paginate_qs(qs, request, serializer_class):
@@ -28,36 +25,22 @@ def paginate_qs(qs, request, serializer_class):
 
 
 class RolePermissionMapView(APIView):
-    """
-    GET /portal/users/role-permissions
-    Returns the full permission map for all roles — no auth needed for UI to build the matrix.
-    """
-
     def get(self, request):
-        data = {role: sorted(perms) for role, perms in ROLES.items()}
-        return Response({'data': data})
+        return Response({'data': {role: sorted(perms) for role, perms in ROLES.items()}})
 
 
 class UserListView(APIView):
-    """
-    GET /portal/users
-    - ADMIN: all users across all tenants
-    - LEAD: all users (read-only perspective)
-    - CLIENT_ADMIN: only users in their tenant
-    """
-
     def get(self, request):
-        caller = USER.get(request.email, {})
-        role = caller.get('role', '')
+        caller_role = request.role or ''
+
+        if caller_role == 'CLIENT_USER':
+            return Response({'error': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
 
         qs = UserProfile.objects.all()
 
-        if role == 'CLIENT_ADMIN':
+        if caller_role == 'CLIENT_ADMIN':
             qs = qs.filter(tenant_id=request.tenant_id)
-        elif role == 'CLIENT_USER':
-            return Response({'error': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
 
-        # Filters
         for field in ('role', 'tenant_id', 'is_active'):
             val = request.query_params.get(field)
             if val is not None:
@@ -75,22 +58,14 @@ class UserListView(APIView):
 
 
 class UserCreateView(APIView):
-    """
-    POST /portal/users/create
-    ADMIN can create any user.
-    CLIENT_ADMIN can only create CLIENT_USER / CLIENT_ADMIN within their tenant.
-    """
-
     def post(self, request):
-        caller = USER.get(request.email, {})
-        caller_role = caller.get('role', '')
+        caller_role = request.role or ''
 
         if caller_role not in ('ADMIN', 'CLIENT_ADMIN'):
             return Response({'error': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
 
         data = dict(request.data)
 
-        # CLIENT_ADMIN can only create client-side users in their own tenant
         if caller_role == 'CLIENT_ADMIN':
             if data.get('role') not in ('CLIENT_ADMIN', 'CLIENT_USER'):
                 return Response(
@@ -111,11 +86,6 @@ class UserCreateView(APIView):
 
 
 class UserDetailView(APIView):
-    """
-    GET /portal/users/<pk>
-    PATCH /portal/users/<pk>
-    """
-
     def _get_user(self, pk, caller_role, caller_tenant):
         user = UserProfile.objects.filter(pk=pk).first()
         if not user:
@@ -125,8 +95,7 @@ class UserDetailView(APIView):
         return user, None
 
     def get(self, request, pk):
-        caller = USER.get(request.email, {})
-        caller_role = caller.get('role', '')
+        caller_role = request.role or ''
         if caller_role == 'CLIENT_USER':
             return Response({'error': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
         user, err = self._get_user(pk, caller_role, request.tenant_id)
@@ -135,8 +104,7 @@ class UserDetailView(APIView):
         return Response({'data': UserProfileSerializer(user).data})
 
     def patch(self, request, pk):
-        caller = USER.get(request.email, {})
-        caller_role = caller.get('role', '')
+        caller_role = request.role or ''
         if caller_role not in ('ADMIN', 'CLIENT_ADMIN'):
             return Response({'error': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
 
@@ -145,10 +113,8 @@ class UserDetailView(APIView):
             return err
 
         data = dict(request.data)
-        # CLIENT_ADMIN cannot escalate roles beyond their scope
-        if caller_role == 'CLIENT_ADMIN':
-            allowed_roles = ('CLIENT_ADMIN', 'CLIENT_USER')
-            if 'role' in data and data['role'] not in allowed_roles:
+        if caller_role == 'CLIENT_ADMIN' and 'role' in data:
+            if data['role'] not in ('CLIENT_ADMIN', 'CLIENT_USER'):
                 return Response({'error': 'Cannot assign that role.'}, status=status.HTTP_403_FORBIDDEN)
 
         serializer = UserUpdateSerializer(user, data=data, partial=True)
@@ -159,14 +125,8 @@ class UserDetailView(APIView):
 
 
 class UserDeactivateView(APIView):
-    """
-    POST /portal/users/<pk>/deactivate
-    POST /portal/users/<pk>/activate
-    """
-
     def _toggle(self, request, pk, active: bool):
-        caller = USER.get(request.email, {})
-        caller_role = caller.get('role', '')
+        caller_role = request.role or ''
         if caller_role not in ('ADMIN', 'CLIENT_ADMIN'):
             return Response({'error': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
         user = UserProfile.objects.filter(pk=pk).first()
@@ -186,26 +146,18 @@ class UserDeactivateView(APIView):
         return Response({'error': 'Invalid action.'}, status=status.HTTP_400_BAD_REQUEST)
 
 
-class StaticUserListView(APIView):
-    """
-    GET /portal/users/static — returns all users from constant.py (seed/dev reference)
-    Internal only.
-    """
+class UserMentionListView(APIView):
+    """GET /portal/users/mentions — lightweight list for @ mention autocomplete."""
 
-    @require_permission('MEMBER_VIEW')
     def get(self, request):
-        caller = USER.get(request.email, {})
-        caller_role = caller.get('role', '')
+        caller_role = request.role or ''
+        qs = UserProfile.objects.filter(is_active=True).only('id', 'user_name', 'email', 'role', 'tenant_id')
 
-        result = []
-        for email, u in USER.items():
-            if caller_role == 'CLIENT_ADMIN' and u.get('tenant_id') != request.tenant_id:
-                continue
-            result.append({
-                'user_id': u['user_id'],
-                'user_name': u['user_name'],
-                'email': email,
-                'role': u['role'],
-                'tenant_id': u.get('tenant_id'),
-            })
-        return Response({'data': result})
+        if request.tenant_id:
+            qs = qs.filter(tenant_id=request.tenant_id)
+
+        data = [
+            {'user_id': u.id, 'user_name': u.user_name, 'email': u.email, 'role': u.role}
+            for u in qs
+        ]
+        return Response({'data': data})
