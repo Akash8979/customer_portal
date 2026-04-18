@@ -59,10 +59,8 @@ class TicketListView(APIView):
     """
 
     def get(self, request):
-        from accounts.constant import USER
-        user = USER.get(request.email, {})
-        role = user.get('role', '')
-        if role in ('CLIENT_ADMIN', 'CLIENT_USER'):
+        role = request.role or ''
+        if request.tenant_id:
             qs = Ticket.objects.filter(tenant_id=request.tenant_id)
         else:
             qs = Ticket.objects.all()
@@ -207,10 +205,8 @@ class TicketKPIView(APIView):
     """
 
     def get(self, request):
-        from accounts.constant import USER
-        user = USER.get(request.email, {})
-        role = user.get('role', '')
-        if role in ('CLIENT_ADMIN', 'CLIENT_USER'):
+        role = request.role or ''
+        if request.tenant_id:
             qs = Ticket.objects.filter(tenant_id=request.tenant_id)
         else:
             qs = Ticket.objects.all()
@@ -269,8 +265,7 @@ class TicketCommentListView(APIView):
     """
 
     def get(self, request, pk):
-        from accounts.constant import USER
-        role = USER.get(request.email, {}).get('role', '')
+        role = request.role or ''
         is_internal = role in ('AGENT', 'LEAD', 'ADMIN')
 
         ticket_qs = Ticket.objects.filter(pk=pk)

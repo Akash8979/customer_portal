@@ -40,10 +40,8 @@ class OnboardingProjectListView(APIView):
     """GET /delivery/onboarding — list all (internal) or own tenant (client)"""
 
     def get(self, request):
-        from accounts.constant import USER
-        user = USER.get(request.email, {})
-        role = user.get('role', '')
-        if role in ('CLIENT_ADMIN', 'CLIENT_USER'):
+        role = request.role or ''
+        if request.tenant_id:
             qs = OnboardingProject.objects.filter(tenant_id=request.tenant_id)
         else:
             qs = OnboardingProject.objects.all()
@@ -80,10 +78,8 @@ class OnboardingProjectDetailView(APIView):
         return qs.first()
 
     def get(self, request, pk):
-        from accounts.constant import USER
-        user = USER.get(request.email, {})
-        role = user.get('role', '')
-        tenant_id = request.tenant_id if role in ('CLIENT_ADMIN', 'CLIENT_USER') else None
+        role = request.role or ''
+        tenant_id = request.tenant_id or None
         project = self._get(pk, tenant_id)
         if not project:
             return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
@@ -169,11 +165,9 @@ class FeatureListView(APIView):
     """GET /delivery/features — roadmap (public + status filter)"""
 
     def get(self, request):
-        from accounts.constant import USER
-        user = USER.get(request.email, {})
-        role = user.get('role', '')
+        role = request.role or ''
         qs = Feature.objects.all()
-        if role in ('CLIENT_ADMIN', 'CLIENT_USER'):
+        if request.tenant_id:
             qs = qs.filter(is_public=True)
 
         for field in ('status', 'quarter', 'year', 'assignee'):
@@ -244,11 +238,9 @@ class FeatureRequestListView(APIView):
     """GET /delivery/feature-requests"""
 
     def get(self, request):
-        from accounts.constant import USER
-        user = USER.get(request.email, {})
-        role = user.get('role', '')
+        role = request.role or ''
         qs = FeatureRequest.objects.all()
-        if role in ('CLIENT_ADMIN', 'CLIENT_USER'):
+        if request.tenant_id:
             qs = qs.filter(tenant_id=request.tenant_id)
 
         for field in ('status', 'tenant_id'):
@@ -294,10 +286,8 @@ class ReleaseListView(APIView):
 
     def get(self, request):
         qs = Release.objects.all()
-        from accounts.constant import USER
-        user = USER.get(request.email, {})
-        role = user.get('role', '')
-        if role in ('CLIENT_ADMIN', 'CLIENT_USER'):
+        role = request.role or ''
+        if request.tenant_id:
             qs = qs.filter(status=Release.STATUS_PUBLISHED)
 
         status_filter = request.query_params.get('status')

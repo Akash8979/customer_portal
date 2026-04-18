@@ -48,6 +48,7 @@ class JWTAuthMiddleware:
         request.user_id = payload.get('user_id')
         request.user_name = payload.get('user_name')
         request.email = payload.get('email')
+        request.role = payload.get('role')
         request.tenant_id = tenant_id
         request.created_by = payload.get('user_id')
         request.updated_at = payload.get('updated_at')

@@ -1,189 +1,141 @@
 import time
 import jwt
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from accounts.constant import USER, ROLES, TENANT
+
+from accounts.constant import ROLES, TENANT
+from user_management.models import UserProfile
 
 SECRET_KEY = 'customer-portal-secret-key'
-ACCESS_TOKEN_EXPIRY = 60 * 60 * 24         # 14 hours
+ACCESS_TOKEN_EXPIRY = 60 * 60 * 24         # 24 hours
 REFRESH_TOKEN_EXPIRY = 60 * 60 * 24 * 365  # 1 year
 
 
-def generate_tokens(email, user_data):
+def generate_tokens(user: UserProfile):
     now = int(time.time())
-
-    tenant_id = user_data.get('tenant_id')
-
-    access_payload = {
-        'user_id': user_data['user_id'],
-        'user_name': user_data['user_name'],
-        'email': email,
-        'tenant_id': tenant_id,
-        'token_type': 'access',
-        'iat': now,
-        'exp': now + ACCESS_TOKEN_EXPIRY,
+    base = {
+        'user_id':   user.id,
+        'user_name': user.user_name,
+        'email':     user.email,
+        'role':      user.role,
+        'tenant_id': user.tenant_id,
+        'iat':       now,
     }
-
-    refresh_payload = {
-        'user_id': user_data['user_id'],
-        'email': email,
-        'tenant_id': tenant_id,
-        'token_type': 'refresh',
-        'iat': now,
-        'exp': now + REFRESH_TOKEN_EXPIRY,
-    }
-
+    access_payload  = {**base, 'token_type': 'access',  'exp': now + ACCESS_TOKEN_EXPIRY}
+    refresh_payload = {**base, 'token_type': 'refresh', 'exp': now + REFRESH_TOKEN_EXPIRY}
     return {
-        'access': jwt.encode(access_payload, SECRET_KEY, algorithm='HS256'),
+        'access':  jwt.encode(access_payload,  SECRET_KEY, algorithm='HS256'),
         'refresh': jwt.encode(refresh_payload, SECRET_KEY, algorithm='HS256'),
     }
 
 
 class LoginView(APIView):
-    """
-    POST /api/accounts/login/
-    Body: { "email": "...", "password": "..." }
-    Validates against the USER constant — no DB required.
-    Returns access token (contains user_id & user_name) and refresh token.
-    """
-
     def post(self, request):
-        email = request.data.get('email')
-        password = request.data.get('password')
+        email    = request.data.get('email', '').strip().lower()
+        password = request.data.get('password', '')
 
         if not email or not password:
-            return Response(
-                {'error': 'Both email and password are required.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return Response({'error': 'Both email and password are required.'}, status=400)
 
-        # Check if email exists
-        user_data = USER.get(email)
-        if user_data is None:
-            return Response(
-                {'error': 'Email does not exist.'},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+        user = UserProfile.objects.filter(email=email).first()
+        if user is None:
+            return Response({'error': 'Email does not exist.'}, status=404)
 
-        # Check password
-        if user_data['password'] != password:
-            return Response(
-                {'error': 'Incorrect password.'},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
+        if not user.is_active:
+            return Response({'error': 'Account is deactivated. Contact your administrator.'}, status=403)
 
-        # Login success
-        tokens = generate_tokens(email, user_data)
-        role = user_data.get('role')
-        permissions = ROLES.get(role, [])
-        tenant_id = user_data.get('tenant_id')
-        tenant_data = TENANT.get(tenant_id, {})
-        response  =  Response({
+        if not user.check_password(password):
+            return Response({'error': 'Incorrect password.'}, status=401)
+
+        user.last_login = timezone.now()
+        user.save(update_fields=['last_login'])
+
+        tokens = generate_tokens(user)
+        role = user.role
+        permissions = ROLES.get(role, []) + (user.custom_permissions or [])
+        tenant_data = TENANT.get(user.tenant_id, {})
+
+        response = Response({
             'message': 'Login successful.',
             'tokens': tokens,
             'user': {
-                'user_id': user_data['user_id'],
-                'email': email,
-                'user_name': user_data['user_name'],
-                'role': role,
-                'permissions': permissions,
-                'tenant_id': tenant_id,
-                'tenant_name': tenant_data.get('tenant_name'),
+                'user_id':     user.id,
+                'email':       user.email,
+                'user_name':   user.user_name,
+                'role':        role,
+                'permissions': sorted(set(permissions)),
+                'tenant_id':   user.tenant_id,
+                'tenant_name': user.tenant_name or tenant_data.get('tenant_name'),
             },
-        }, status=status.HTTP_200_OK)
-        # Set JWT in cookie
+        }, status=200)
         response.set_cookie(
-            key="token",
-            value=tokens['access'],
-            httponly=True,
-            secure=True,        # True in production (HTTPS)
-            samesite="none",     # or 'Strict' / 'None'
+            key='token', value=tokens['access'],
+            httponly=True, secure=True, samesite='none',
         )
         return response
 
 
 class RefreshTokenView(APIView):
-    """
-    POST /api/accounts/token/refresh/
-    Body: { "refresh": "<refresh_token>" }
-    Validates the refresh token and returns a new access token.
-    """
-
     def post(self, request):
         refresh_token = request.data.get('refresh')
         if not refresh_token:
-            return Response(
-                {'error': 'Refresh token is required.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return Response({'error': 'Refresh token is required.'}, status=400)
 
         try:
             payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=['HS256'])
         except jwt.ExpiredSignatureError:
-            return Response({'error': 'Refresh token has expired.'}, status=status.HTTP_401_UNAUTHORIZED)
+            return Response({'error': 'Refresh token has expired.'}, status=401)
         except jwt.InvalidTokenError:
-            return Response({'error': 'Invalid refresh token.'}, status=status.HTTP_401_UNAUTHORIZED)
+            return Response({'error': 'Invalid refresh token.'}, status=401)
 
         if payload.get('token_type') != 'refresh':
-            return Response({'error': 'Invalid token type.'}, status=status.HTTP_401_UNAUTHORIZED)
+            return Response({'error': 'Invalid token type.'}, status=401)
 
-        # Look up user from constant
-        email = payload.get('email')
-        user_data = USER.get(email)
-        if user_data is None:
-            return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+        user = UserProfile.objects.filter(email=payload.get('email')).first()
+        if not user:
+            return Response({'error': 'User not found.'}, status=404)
+        if not user.is_active:
+            return Response({'error': 'Account deactivated.'}, status=403)
 
-        # Generate new access token
         now = int(time.time())
         access_payload = {
-            'user_id': user_data['user_id'],
-            'user_name': user_data['user_name'],
-            'email': email,
+            'user_id':    user.id,
+            'user_name':  user.user_name,
+            'email':      user.email,
+            'role':       user.role,
+            'tenant_id':  user.tenant_id,
             'token_type': 'access',
-            'iat': now,
-            'exp': now + ACCESS_TOKEN_EXPIRY,
+            'iat':        now,
+            'exp':        now + ACCESS_TOKEN_EXPIRY,
         }
-
-        return Response({
-            'access': jwt.encode(access_payload, SECRET_KEY, algorithm='HS256'),
-        }, status=status.HTTP_200_OK)
+        return Response({'access': jwt.encode(access_payload, SECRET_KEY, algorithm='HS256')})
 
 
 class LogoutView(APIView):
-    """
-    POST /api/accounts/logout/
-    Since there's no DB/session, just acknowledges logout.
-    """
-
     def post(self, request):
-        return Response({'message': 'Logged out successfully.'}, status=status.HTTP_200_OK)
+        return Response({'message': 'Logged out successfully.'})
 
 
 class MeView(APIView):
-    """
-    GET /api/accounts/me/?tenant_id=<tenant_id>
-    Returns the logged-in user's details from the JWT token.
-    """
-
     def get(self, request):
-        email = request.email
-        user_data = USER.get(email)
-        if user_data is None:
-            return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+        user = UserProfile.objects.filter(email=request.email).first()
+        if not user:
+            return Response({'error': 'User not found.'}, status=404)
 
-        role = user_data.get('role')
-        tenant_id = user_data.get('tenant_id')
-        tenant_data = TENANT.get(tenant_id, {})
+        role = user.role
+        tenant_data = TENANT.get(user.tenant_id, {})
+        permissions = ROLES.get(role, []) + (user.custom_permissions or [])
 
         return Response({
             'data': {
-                'user_id': request.user_id,
-                'user_name': request.user_name,
-                'email': email,
-                'role': role,
-                'permissions': ROLES.get(role, []),
-                'tenant_id': tenant_id,
-                'tenant_name': tenant_data.get('tenant_name'),
+                'user_id':     user.id,
+                'user_name':   user.user_name,
+                'email':       user.email,
+                'role':        role,
+                'permissions': sorted(set(permissions)),
+                'tenant_id':   user.tenant_id,
+                'tenant_name': user.tenant_name or tenant_data.get('tenant_name'),
             }
-        }, status=status.HTTP_200_OK)
+        })
