@@ -3,6 +3,7 @@ from .views import (
     TicketCreateView, TicketListView, TicketDetailView, TicketUpdateView,
     TicketStatusUpdateView, TicketAttachmentView, CommentCreateView,
     CommentUpdateView, TicketKPIView, TicketCommentListView, TicketHistoryView,
+    AuditLogListView,
 )
 from .sse import TicketStreamView
 
@@ -19,4 +20,5 @@ urlpatterns = [
     path('comments', CommentCreateView.as_view(), name='comment-create'),
     path('comments/<int:pk>/update', CommentUpdateView.as_view(), name='comment-update'),
     path('stream', TicketStreamView, name='ticket-stream'),
+    path('audit-logs', AuditLogListView.as_view(), name='audit-logs'),
 ]
