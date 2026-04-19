@@ -6,6 +6,7 @@ from rest_framework.views import APIView
 
 from accounts.constant import ROLES, TENANT
 from accounts.decorators import require_permission
+from accounts.audit import log_action
 from .models import UserProfile
 from .serializers import UserProfileSerializer, UserCreateSerializer, UserUpdateSerializer
 
@@ -43,7 +44,7 @@ class UserListView(APIView):
 
         for field in ('role', 'tenant_id', 'is_active'):
             val = request.query_params.get(field)
-            if val is not None:
+            if val is not None and val != '':
                 if field == 'is_active':
                     qs = qs.filter(is_active=val.lower() == 'true')
                 else:
@@ -81,6 +82,8 @@ class UserCreateView(APIView):
         serializer = UserCreateSerializer(data=data)
         if serializer.is_valid():
             user = serializer.save()
+            log_action(request, 'USER_CREATE', 'USER', user.id,
+                       {'email': user.email, 'role': user.role, 'tenant_id': user.tenant_id or ''})
             return Response({'data': UserProfileSerializer(user).data}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -136,6 +139,8 @@ class UserDeactivateView(APIView):
             return Response({'error': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
         user.is_active = active
         user.save(update_fields=['is_active', 'updated_at'])
+        action_str = 'USER_ACTIVATE' if active else 'USER_DEACTIVATE'
+        log_action(request, action_str, 'USER', pk, {'email': user.email})
         return Response({'data': UserProfileSerializer(user).data})
 
     def post(self, request, pk, action):

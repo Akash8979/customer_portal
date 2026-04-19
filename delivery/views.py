@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.decorators import require_permission
+from accounts.audit import log_action
 from .models import (
     OnboardingProject, OnboardingPhase, OnboardingTask,
     Feature, FeatureRequest, FeatureVote,
@@ -371,6 +372,8 @@ class BugCreateView(APIView):
         serializer = BugSerializer(data=data)
         if serializer.is_valid():
             bug = serializer.save()
+            log_action(request, 'BUG_CREATE', 'BUG', bug.id,
+                       {'title': bug.title, 'severity': bug.severity})
             return Response({'data': BugSerializer(bug).data}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -390,12 +393,18 @@ class BugDetailView(APIView):
         bug = Bug.objects.filter(pk=pk).first()
         if not bug:
             return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        old_status = bug.status
         serializer = BugSerializer(bug, data=request.data, partial=True)
         if serializer.is_valid():
             updated = serializer.save()
             if updated.status == Bug.STATUS_DEPLOYED and not updated.deployed_at:
                 updated.deployed_at = timezone.now()
                 updated.save(update_fields=['deployed_at'])
+            if old_status != updated.status:
+                log_action(request, 'BUG_STATUS_UPDATE', 'BUG', pk,
+                           {'from': old_status, 'to': updated.status})
+            else:
+                log_action(request, 'BUG_UPDATE', 'BUG', pk, {'title': updated.title})
             return Response({'data': BugSerializer(updated).data})
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
