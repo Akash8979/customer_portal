@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Ticket, Attachment, TicketAttachment, Comment, CommentMention
+from .models import Ticket, Attachment, TicketAttachment, Comment, CommentMention, TicketHistory
 
 
 class AttachmentSerializer(serializers.ModelSerializer):
@@ -178,6 +178,12 @@ class CommentCreateSerializer(serializers.ModelSerializer):
         for user_id in mentioned_user_ids:
             CommentMention.objects.create(comment_id=comment.id, mentioned_user_id=user_id)
         return comment
+
+
+class TicketHistorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TicketHistory
+        fields = ['id', 'ticket_id', 'user_id', 'action', 'field_name', 'old_value', 'new_value', 'created_at']
 
 
 class CommentUpdateSerializer(serializers.ModelSerializer):
