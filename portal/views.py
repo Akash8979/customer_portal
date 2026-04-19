@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.decorators import require_permission
-from .models import Ticket, Comment
+from .models import Ticket, Comment, TicketHistory
 from .services.email_service import (
     send_ticket_created_email,
     send_ticket_updated_email,
@@ -22,6 +22,7 @@ from .serializers import (
     CommentCreateSerializer,
     CommentUpdateSerializer,
     CommentSerializer,
+    TicketHistorySerializer,
 )
 
 class TicketCreateView(APIView):
@@ -59,7 +60,7 @@ class TicketListView(APIView):
     """
 
     def get(self, request):
-        role = request.role or ''
+        # role = request.role or ''
         if request.tenant_id:
             qs = Ticket.objects.filter(tenant_id=request.tenant_id)
         else:
@@ -132,14 +133,33 @@ class TicketUpdateView(APIView):
         except Ticket.DoesNotExist:
             return Response({'error': 'Ticket not found.'}, status=status.HTTP_404_NOT_FOUND)
 
+        # Capture before-state for tracked fields
+        tracked_fields = ['title', 'description', 'status', 'priority', 'severity', 'category', 'assigned_to']
+        before = {f: str(getattr(ticket, f) or '') for f in tracked_fields}
+
         serializer = TicketUpdateSerializer(ticket, data=request.data, partial=True)
         if serializer.is_valid():
             updated = serializer.save()
             # send_ticket_updated_email(updated)
+
+            # Record one history entry per changed field
+            user_id = getattr(request, 'user_id', None)
+            for field in tracked_fields:
+                new_val = str(getattr(updated, field) or '')
+                if new_val != before[field]:
+                    TicketHistory.objects.create(
+                        ticket_id=pk,
+                        user_id=user_id,
+                        action=f'updated_{field}',
+                        field_name=field,
+                        old_value=before[field] or None,
+                        new_value=new_val or None,
+                    )
+
             data = TicketSerializer(updated).data
-            return Response({"data":data})
+            return Response({"data": data})
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
+
 
 
 class CommentCreateView(APIView):
@@ -279,6 +299,20 @@ class TicketCommentListView(APIView):
             comments = comments.filter(tenant_id=request.tenant_id)
 
         data = CommentSerializer(comments, many=True).data
+        return Response({'data': data})
+
+
+class TicketHistoryView(APIView):
+    """
+    GET /portal/tickets/<pk>/history
+    Returns the audit trail for a ticket — one entry per field change.
+    """
+
+    def get(self, request, pk):
+        if not Ticket.objects.filter(pk=pk).exists():
+            return Response({'error': 'Ticket not found.'}, status=status.HTTP_404_NOT_FOUND)
+        history = TicketHistory.objects.filter(ticket_id=pk)
+        data = TicketHistorySerializer(history, many=True).data
         return Response({'data': data})
 
 
