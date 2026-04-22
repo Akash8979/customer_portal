@@ -3,7 +3,7 @@ from .views import (
     TicketCreateView, TicketListView, TicketDetailView, TicketUpdateView,
     TicketStatusUpdateView, TicketAttachmentView, CommentCreateView,
     CommentUpdateView, TicketKPIView, TicketCommentListView, TicketHistoryView,
-    AuditLogListView,
+    AuditLogListView, SLAPolicyListView, SLAPolicyDetailView,
 )
 from .sse import TicketStreamView
 
@@ -21,4 +21,6 @@ urlpatterns = [
     path('comments/<int:pk>/update', CommentUpdateView.as_view(), name='comment-update'),
     path('stream', TicketStreamView, name='ticket-stream'),
     path('audit-logs', AuditLogListView.as_view(), name='audit-logs'),
+    path('sla-policies', SLAPolicyListView.as_view(), name='sla-policy-list'),
+    path('sla-policies/<int:pk>', SLAPolicyDetailView.as_view(), name='sla-policy-detail'),
 ]

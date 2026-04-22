@@ -1,6 +1,7 @@
 from django.urls import path
 from .views import (
     OnboardingProjectListView, OnboardingProjectCreateView, OnboardingProjectDetailView,
+    OnboardingStatsView,
     OnboardingPhaseView, OnboardingPhaseDetailView,
     OnboardingTaskView, OnboardingTaskDetailView,
     FeatureListView, FeatureCreateView, FeatureDetailView, FeatureVoteView,
@@ -13,6 +14,7 @@ urlpatterns = [
     # Onboarding
     path('onboarding', OnboardingProjectListView.as_view(), name='onboarding-list'),
     path('onboarding/create', OnboardingProjectCreateView.as_view(), name='onboarding-create'),
+    path('onboarding/stats', OnboardingStatsView.as_view(), name='onboarding-stats'),
     path('onboarding/<int:pk>', OnboardingProjectDetailView.as_view(), name='onboarding-detail'),
     path('onboarding/<int:project_pk>/phases', OnboardingPhaseView.as_view(), name='onboarding-phase-create'),
     path('phases/<int:pk>', OnboardingPhaseDetailView.as_view(), name='onboarding-phase-detail'),

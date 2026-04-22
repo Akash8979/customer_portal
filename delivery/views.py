@@ -429,3 +429,61 @@ class BugStatsView(APIView):
             'aging_14d': open_qs.filter(created_at__lt=now_ - timedelta(days=14)).count(),
             'aging_30d': open_qs.filter(created_at__lt=now_ - timedelta(days=30)).count(),
         }})
+
+
+class OnboardingStatsView(APIView):
+    """GET /delivery/onboarding/stats — summary KPIs for the onboarding dashboard"""
+
+    def get(self, request):
+        from django.utils.timezone import now as tz_now
+        from datetime import timedelta
+
+        today = tz_now().date()
+        next_30 = today + timedelta(days=30)
+
+        qs = OnboardingProject.objects.all()
+        total = qs.count()
+
+        status_counts = {
+            s: qs.filter(status=s).count()
+            for s in ['NOT_STARTED', 'IN_PROGRESS', 'ON_TRACK', 'AT_RISK', 'BLOCKED', 'COMPLETED']
+        }
+        health_counts = {
+            h: qs.filter(health_score=h).count()
+            for h in ['ON_TRACK', 'AT_RISK', 'BLOCKED']
+        }
+
+        going_live_soon = qs.filter(
+            estimated_go_live__gte=today,
+            estimated_go_live__lte=next_30,
+        ).exclude(status='COMPLETED').count()
+
+        overdue = qs.filter(
+            estimated_go_live__lt=today,
+        ).exclude(status='COMPLETED').count()
+
+        all_tasks = OnboardingTask.objects.filter(phase__project__in=qs)
+        total_tasks = all_tasks.count()
+        done_tasks  = all_tasks.filter(status='COMPLETED').count()
+        avg_completion = round((done_tasks / total_tasks) * 100) if total_tasks > 0 else 0
+
+        open_blockers = OnboardingTask.objects.filter(
+            is_blocker=True,
+            status__in=['TODO', 'IN_PROGRESS', 'BLOCKED'],
+        ).count()
+
+        completed_this_month = qs.filter(
+            actual_go_live__year=today.year,
+            actual_go_live__month=today.month,
+        ).count()
+
+        return Response({'data': {
+            'total':                total,
+            'status':               status_counts,
+            'health':               health_counts,
+            'going_live_soon':      going_live_soon,
+            'overdue':              overdue,
+            'open_blockers':        open_blockers,
+            'avg_completion_pct':   avg_completion,
+            'completed_this_month': completed_this_month,
+        }})
