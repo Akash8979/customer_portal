@@ -6,7 +6,7 @@ from rest_framework.views import APIView
 
 from accounts.decorators import require_permission
 from accounts.audit import log_action
-from .models import Ticket, Comment, TicketHistory, AuditLog, SLAPolicy, Notification
+from .models import Ticket, Comment, TicketHistory, AuditLog, SLAPolicy, Notification, Attachment
 from .services.email_service import (
     send_ticket_created_email,
     send_ticket_updated_email,
@@ -362,7 +362,7 @@ class TicketHistoryView(APIView):
 
 class TicketAttachmentView(APIView):
     """
-    POST /api/portal/attachments/
+    POST /portal/attachments/
     Body: {"file_name": "log.txt","file_type": "text/plain","file_path": "/uploads/log.txt","metadata": {}}
     """
 
@@ -372,8 +372,42 @@ class TicketAttachmentView(APIView):
         if serializer.is_valid():
             serializer.save(tenant_id=request.tenant_id)
             data = serializer.data
-            return Response({"data":data}, status=status.HTTP_201_CREATED)
+            return Response({"data": data}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class FileUploadView(APIView):
+    """
+    POST /portal/attachments/upload
+    Accepts multipart/form-data with a 'file' field.
+    Saves the file to MEDIA_ROOT and returns the Attachment record.
+    """
+
+    def post(self, request):
+        import time
+        from django.core.files.storage import default_storage
+        from django.conf import settings
+        from django.utils.text import get_valid_filename
+        from .serializers import AttachmentSerializer
+
+        uploaded = request.FILES.get('file')
+        if not uploaded:
+            return Response({'error': 'No file provided.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        safe_name = get_valid_filename(uploaded.name)
+        relative_path = f'uploads/{int(time.time())}_{safe_name}'
+        saved_path = default_storage.save(relative_path, uploaded)
+
+        file_url = request.build_absolute_uri(settings.MEDIA_URL + saved_path)
+
+        attachment = Attachment.objects.create(
+            file_name=uploaded.name,
+            file_type=uploaded.content_type or 'application/octet-stream',
+            file_path=file_url,
+            tenant_id=getattr(request, 'tenant_id', '') or '',
+            metadata={'size': uploaded.size},
+        )
+        return Response({'data': AttachmentSerializer(attachment).data}, status=status.HTTP_201_CREATED)
 
 
 class AuditLogListView(APIView):
