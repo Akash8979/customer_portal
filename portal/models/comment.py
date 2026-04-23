@@ -8,6 +8,7 @@ class Comment(models.Model):
     user_id = models.IntegerField()
     parent_id = models.IntegerField(null=True, blank=True)
     message = models.TextField()
+    is_internal = models.BooleanField(default=False)
     is_deleted = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

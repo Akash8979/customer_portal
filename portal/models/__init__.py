@@ -6,5 +6,6 @@ from .comment_mention import CommentMention
 from .sla import SLAPolicy, SLATracking
 from .ticket_history import TicketHistory
 from .audit_log import AuditLog
+from .notification import Notification
 
-__all__ = ['Ticket', 'Attachment', 'TicketAttachment', 'Comment', 'CommentMention', 'SLAPolicy', 'SLATracking', 'TicketHistory', 'AuditLog']
+__all__ = ['Ticket', 'Attachment', 'TicketAttachment', 'Comment', 'CommentMention', 'SLAPolicy', 'SLATracking', 'TicketHistory', 'AuditLog', 'Notification']
