@@ -1,7 +1,7 @@
 from django.urls import path
 from .views import (
     TicketCreateView, TicketListView, TicketDetailView, TicketUpdateView,
-    TicketStatusUpdateView, TicketAttachmentView, CommentCreateView,
+    TicketStatusUpdateView, TicketAttachmentView, FileUploadView, CommentCreateView,
     CommentUpdateView, TicketKPIView, TicketCommentListView, TicketHistoryView,
     AuditLogListView, SLAPolicyListView, SLAPolicyDetailView,
     NotificationListView, NotificationMarkAllReadView, NotificationMarkReadView,
@@ -18,6 +18,7 @@ urlpatterns = [
     path('tickets/<int:pk>/comments', TicketCommentListView.as_view(), name='ticket-comments'),
     path('tickets/<int:pk>/history', TicketHistoryView.as_view(), name='ticket-history'),
     path('attachments', TicketAttachmentView.as_view(), name='ticket-attachments'),
+    path('attachments/upload', FileUploadView.as_view(), name='file-upload'),
     path('comments', CommentCreateView.as_view(), name='comment-create'),
     path('comments/<int:pk>/update', CommentUpdateView.as_view(), name='comment-update'),
     path('stream', TicketStreamView, name='ticket-stream'),

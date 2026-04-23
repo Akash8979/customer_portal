@@ -10,7 +10,8 @@ EXEMPT_PATHS = [
     '/portal/user/login',
     '/portal/user/token/refresh/',
     '/portal/user/logout/',
-    '/admin/'
+    '/admin/',
+    '/media/',
 ]
 
 
