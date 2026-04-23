@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Ticket, Attachment, TicketAttachment, Comment, CommentMention, TicketHistory
+from .models import Ticket, Attachment, TicketAttachment, Comment, CommentMention, TicketHistory, Notification
 
 
 class AttachmentSerializer(serializers.ModelSerializer):
@@ -135,7 +135,7 @@ class CommentSerializer(serializers.ModelSerializer):
         model = Comment
         fields = [
             'id', 'ticket_id', 'tenant_id', 'user_id', 'parent_id', 'message',
-            'is_deleted', 'attachments', 'mentions', 'created_at', 'updated_at',
+            'is_internal', 'is_deleted', 'attachments', 'mentions', 'created_at', 'updated_at',
         ]
 
     def get_attachments(self, obj):
@@ -160,7 +160,7 @@ class CommentCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Comment
-        fields = ['ticket_id', 'user_id', 'parent_id', 'message', 'attachment_ids', 'mentioned_user_ids']
+        fields = ['ticket_id', 'user_id', 'parent_id', 'message', 'is_internal', 'attachment_ids', 'mentioned_user_ids']
 
     def validate_parent_id(self, value):
         if value is not None and not Comment.objects.filter(id=value, is_deleted=False).exists():
@@ -213,3 +213,9 @@ class CommentUpdateSerializer(serializers.ModelSerializer):
             )
         return instance
 
+
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = ['id', 'type', 'title', 'message', 'link', 'is_read', 'created_at']
+        read_only_fields = ['id', 'type', 'title', 'message', 'link', 'created_at']

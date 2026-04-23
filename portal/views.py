@@ -6,14 +6,19 @@ from rest_framework.views import APIView
 
 from accounts.decorators import require_permission
 from accounts.audit import log_action
-from .models import Ticket, Comment, TicketHistory, AuditLog, SLAPolicy
+from .models import Ticket, Comment, TicketHistory, AuditLog, SLAPolicy, Notification
 from .services.email_service import (
     send_ticket_created_email,
     send_ticket_updated_email,
     send_comment_created_email,
     send_comment_updated_email,
 )
-from .services.notification_service import notify_ticket_created
+from .services.notification_service import (
+    notify_ticket_created, create_notification,
+    on_ticket_created, on_ticket_status_changed,
+    on_ticket_assigned, on_ticket_escalated,
+    on_comment_added, on_mention,
+)
 from .services.sla_service import initialize_sla_for_ticket
 from .publishers import publish_ticket_created, publish_ticket_status, publish_new_comment
 from .serializers import (
@@ -25,6 +30,7 @@ from .serializers import (
     CommentUpdateSerializer,
     CommentSerializer,
     TicketHistorySerializer,
+    NotificationSerializer,
 )
 
 class TicketCreateView(APIView):
@@ -46,6 +52,7 @@ class TicketCreateView(APIView):
             # publish_ticket_created(request.tenant_id, ticket)
             # send_ticket_created_email(ticket)
             notify_ticket_created(ticket)
+            on_ticket_created(ticket, actor_user_id=request.user_id)
             log_action(request, 'TICKET_CREATE', 'TICKET', ticket.id,
                        {'title': ticket.title, 'priority': ticket.priority, 'category': ticket.category})
             data = TicketSerializer(ticket).data
@@ -138,16 +145,20 @@ class TicketUpdateView(APIView):
             return Response({'error': 'Ticket not found.'}, status=status.HTTP_404_NOT_FOUND)
 
         # Capture before-state for tracked fields
-        tracked_fields = ['title', 'description', 'status', 'priority', 'severity', 'category', 'assigned_to']
-        before = {f: str(getattr(ticket, f) or '') for f in tracked_fields}
+        tracked_fields = ['title', 'description', 'status', 'priority', 'severity', 'category', 'assigned_to', 'due_date', 'is_escalated', 'tags']
+        before = {f: '' if getattr(ticket, f) is None else str(getattr(ticket, f)) for f in tracked_fields}
+        old_status      = ticket.status
+        old_assigned_to = ticket.assigned_to
+        old_escalated   = ticket.is_escalated
 
         serializer = TicketUpdateSerializer(ticket, data=request.data, partial=True)
         if serializer.is_valid():
             updated = serializer.save()
             # send_ticket_updated_email(updated)
 
-            # Record one history entry per changed field
             user_id = getattr(request, 'user_id', None)
+
+            # Record one history entry per changed field
             for field in tracked_fields:
                 new_val = str(getattr(updated, field) or '')
                 if new_val != before[field]:
@@ -159,6 +170,24 @@ class TicketUpdateView(APIView):
                         old_value=before[field] or None,
                         new_value=new_val or None,
                     )
+
+            # ── In-app notifications ──────────────────────────────────────
+            if updated.status != old_status:
+                on_ticket_status_changed(updated, old_status, actor_user_id=user_id)
+
+            if updated.assigned_to and updated.assigned_to != old_assigned_to:
+                try:
+                    from user_management.models import UserProfile
+                    assignee = UserProfile.objects.filter(
+                        email=updated.assigned_to, is_active=True
+                    ).first()
+                    if assignee:
+                        on_ticket_assigned(updated, assignee.id, actor_user_id=user_id)
+                except Exception:
+                    pass
+
+            if updated.is_escalated and not old_escalated:
+                on_ticket_escalated(updated, actor_user_id=user_id)
 
             log_action(request, 'TICKET_UPDATE', 'TICKET', pk,
                        {'changed_fields': [f for f in tracked_fields if str(getattr(updated, f) or '') != before[f]]})
@@ -180,14 +209,23 @@ class CommentCreateView(APIView):
     def post(self, request):
         serializer = CommentCreateSerializer(data=request.data)
         if serializer.is_valid():
-            # Use ticket's tenant_id so internal-user comments are visible to clients
             ticket_id = serializer.validated_data.get('ticket_id')
             tenant_id = request.tenant_id
-            if not tenant_id and ticket_id:
-                t = Ticket.objects.filter(pk=ticket_id).first()
-                if t:
-                    tenant_id = t.tenant_id
+            ticket = Ticket.objects.filter(pk=ticket_id).first()
+            if not tenant_id and ticket:
+                tenant_id = ticket.tenant_id
             comment = serializer.save(tenant_id=tenant_id)
+
+            actor_user_id = getattr(request, 'user_id', None)
+
+            # In-app notifications
+            if ticket:
+                on_comment_added(comment, ticket, actor_user_id=actor_user_id)
+                # @mention notifications
+                mentioned_ids = serializer.validated_data.get('mentioned_user_ids', [])
+                for mid in mentioned_ids:
+                    on_mention(mid, ticket, actor_user_id=actor_user_id)
+
             log_action(request, 'COMMENT_CREATE', 'COMMENT', comment.id,
                        {'ticket_id': ticket_id})
             data = CommentSerializer(comment).data
@@ -302,7 +340,7 @@ class TicketCommentListView(APIView):
 
         comments = Comment.objects.filter(ticket_id=pk, is_deleted=False)
         if not is_internal:
-            comments = comments.filter(tenant_id=request.tenant_id)
+            comments = comments.filter(tenant_id=request.tenant_id, is_internal=False)
 
         data = CommentSerializer(comments, many=True).data
         return Response({'data': data})
@@ -536,3 +574,54 @@ class SLAPolicyDetailView(APIView):
                    {'tenant_id': policy.tenant_id, 'priority': policy.priority})
         policy.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class NotificationListView(APIView):
+    """
+    GET  /portal/notifications          — list notifications for the current user
+    POST /portal/notifications/mark-all — mark all as read
+    """
+
+    def get(self, request):
+        user_id = getattr(request, 'user_id', None)
+        if not user_id:
+            return Response({'error': 'Unauthorized.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        qs = Notification.objects.filter(user_id=user_id).order_by('-created_at')[:50]
+        unread_count = Notification.objects.filter(user_id=user_id, is_read=False).count()
+        data = NotificationSerializer(qs, many=True).data
+        return Response({'data': data, 'unread_count': unread_count})
+
+
+class NotificationMarkAllReadView(APIView):
+    """
+    POST /portal/notifications/mark-all
+    """
+
+    def post(self, request):
+        user_id = getattr(request, 'user_id', None)
+        if not user_id:
+            return Response({'error': 'Unauthorized.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        Notification.objects.filter(user_id=user_id, is_read=False).update(is_read=True)
+        return Response({'message': 'All notifications marked as read.'})
+
+
+class NotificationMarkReadView(APIView):
+    """
+    PATCH /portal/notifications/<pk>/read
+    """
+
+    def patch(self, request, pk):
+        user_id = getattr(request, 'user_id', None)
+        if not user_id:
+            return Response({'error': 'Unauthorized.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        try:
+            notif = Notification.objects.get(pk=pk, user_id=user_id)
+        except Notification.DoesNotExist:
+            return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        notif.is_read = True
+        notif.save(update_fields=['is_read'])
+        return Response(NotificationSerializer(notif).data)

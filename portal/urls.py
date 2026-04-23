@@ -4,6 +4,7 @@ from .views import (
     TicketStatusUpdateView, TicketAttachmentView, CommentCreateView,
     CommentUpdateView, TicketKPIView, TicketCommentListView, TicketHistoryView,
     AuditLogListView, SLAPolicyListView, SLAPolicyDetailView,
+    NotificationListView, NotificationMarkAllReadView, NotificationMarkReadView,
 )
 from .sse import TicketStreamView
 
@@ -23,4 +24,8 @@ urlpatterns = [
     path('audit-logs', AuditLogListView.as_view(), name='audit-logs'),
     path('sla-policies', SLAPolicyListView.as_view(), name='sla-policy-list'),
     path('sla-policies/<int:pk>', SLAPolicyDetailView.as_view(), name='sla-policy-detail'),
+    # Notifications
+    path('notifications', NotificationListView.as_view(), name='notification-list'),
+    path('notifications/mark-all', NotificationMarkAllReadView.as_view(), name='notification-mark-all'),
+    path('notifications/<int:pk>/read', NotificationMarkReadView.as_view(), name='notification-mark-read'),
 ]
